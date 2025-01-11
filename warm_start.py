@@ -89,7 +89,7 @@ if __name__ == "__main__":
     parser.add_argument('--n', type=int)
     parser.add_argument('--q', type=int)
     parser.add_argument('--wu_it', type=int, default=100, required=False)
-    parser.add_argument('--r', type=float, default=0.1, required=False)
+    parser.add_argument('--nu', type=float, default=0.1, required=False)
     parser.add_argument('--seed', type=int, default=0, required=False)
     parser.add_argument('--max_iter', type=int, default=np.inf, required=False)
     parser.add_argument('--float64', action='store_true')
@@ -140,8 +140,8 @@ if __name__ == "__main__":
     wu_it = args.wu_it
     a_original = a.clone()
     # perturb log weight a
-    a = perturb(a_original,args.r)
-    print(f'a perturb ratio: {args.r}')
+    a = perturb(a_original,args.nu)
+    print(f'weight perturb ratio: {args.nu}')
 
     MAX_ITER = args.max_iter
     it = 0
