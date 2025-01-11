@@ -20,6 +20,15 @@ Run PDMCF method
 ```
 python pdmcf.py --n 100 --q 10
 ```
-where <code>--n</code> specifies number of nodes, <code>--q</code> specifies number of neighbors. One can also add <code>--mosek_check</code> to check with MOSEK result, note this requires to purchase MOSEK license.
-## PDMCF_JAX experiment
+where <code>--n</code> specifies number of nodes, <code>--q</code> specifies number of neighbors. One can also add <code>--mosek_check</code> to check with MOSEK result, note this requires to purchase MOSEK license. <code>--float64</code> can be added to switch from *float32* to *float64*, which gives more precise numerical result.
+## PDMCF(JAX) experiment
+Install JAX
+```
+pip install -U "jax[cuda12]"
+```
+Run PDMCF method
+```
+python pdmcf_jax.py --n 100 --q 10
+```
+similarly, <code>--mosek_check</code> can be added to check with MOSEK result, and <code>--float64</code> can be added to switch to higher accuracy.
 ## Warm start experiment
