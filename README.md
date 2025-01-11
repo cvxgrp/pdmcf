@@ -36,4 +36,4 @@ Run PDMCF (with warm start) method
 ```
 python warm_start.py --n 100 --q 10 --nu 0.1
 ```
-<code>--nu</code> specifies weight perturbation ratio, <code>--float64</code> can be added to switch to higher accuracy.
+<code>--nu</code> specifies weight perturbation ratio (default to 0.1), <code>--float64</code> can be added to switch to higher accuracy.
