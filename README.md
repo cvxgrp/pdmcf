@@ -11,6 +11,7 @@ Clone the repo and run the following command
 ```
 conda create -n pdmcf python=3.12
 conda activate pdmcf
+conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
 pip install -r requirement.txt
 conda install pytorch-scatter -c pyg
 ```
