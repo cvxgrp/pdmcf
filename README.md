@@ -4,7 +4,7 @@ This repo contains the source code for experiments for our PDMCF paper: XXXpaper
 
 ## Repository Overview
 
-We provide <code>pdmcf.py</code> for our torch implementation, <code>pdmcf_jax.py</code> for our jax implementation, and <code>pdmcf_warm.py</code> for reproducing our warm start results
+We provide <code>pdmcf.py</code> for our torch implementation, <code>pdmcf_jax.py</code> for our jax implementation, and <code>warm_start.py</code> for reproducing our warm start results
 
 ## Quickstart
 Clone the repo and run the following command
