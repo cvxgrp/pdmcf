@@ -20,7 +20,7 @@ Run PDMCF method
 ```
 python pdmcf.py --n 100 --q 10
 ```
-where <code>--n</code> specifies number of nodes, <code>--q</code> specifies number of neighbors. One can also add <code>--mosek_check</code> to check with MOSEK result, note this requires to purchase MOSEK license. <code>--float64</code> can be added to switch from *float32* to *float64*, which gives more precise numerical result.
+where <code>--n</code> specifies number of nodes, <code>--q</code> specifies number of neighbors. One can also add <code>--mosek_check</code> to check with MOSEK result, note this requires to purchase MOSEK license. <code>--float64</code> can be added to switch from *float32* to *float64*, which gives more precise numerical results.
 ## PDMCF(JAX) experiment
 Install JAX
 ```
