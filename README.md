@@ -32,3 +32,8 @@ python pdmcf_jax.py --n 100 --q 10
 ```
 similarly, <code>--mosek_check</code> can be added to check with MOSEK result, and <code>--float64</code> can be added to switch to higher accuracy.
 ## Warm start experiment
+Run PDMCF (with warm start) method
+```
+python warm_start.py --n 100 --q 10 --nu 0.1
+```
+<code>--nu</code> specifies weight perturbation ratio, <code>--float64</code> can be added to switch to higher accuracy.
