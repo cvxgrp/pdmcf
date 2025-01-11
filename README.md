@@ -22,4 +22,4 @@ python pdmcf.py --n 100 --q 10
 ```
 where <code>--n</code> specifies number of nodes, <code>--q</code> specifies number of neighbors. One can also add <code>--mosek_check</code> to check with MOSEK result, note this requires to purchase MOSEK license.
 ## PDMCF_JAX experiment
-## warm start experiment
+## Warm start experiment
