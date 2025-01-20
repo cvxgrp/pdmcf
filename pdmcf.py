@@ -43,8 +43,8 @@ def project(F,c):
     F_project[:,col_ind] = F_plus[:,col_ind]
     return F_project
 
-def prox_util(Y,alpha_a):
-    n1 = (Y-(Y**2+4*alpha_a)**0.5)/2
+def prox_util(Y,beta_a):
+    n1 = (Y - (Y**2 + 4 * beta_a)**0.5)/2
     n1.fill_diagonal_(0)
     return n1
 
@@ -80,7 +80,7 @@ def weight_update(F,Y,pweight,eps_zero,eta,F_init,Y_init):
     if del_F>eps_zero and del_Y>eps_zero:
         pweight = torch.exp(0.5*torch.log(del_Y/del_F)+\
             0.5*torch.log(torch.Tensor([pweight])).item())
-    return eta*pweight, eta/pweight , pweight
+    return eta/pweight, eta*pweight , pweight
 
 if __name__ == "__main__":
     device = 'cuda:0'
@@ -91,6 +91,7 @@ if __name__ == "__main__":
     parser.add_argument('--wu_it', type=int, default=100, required=False)
     parser.add_argument('--seed', type=int, default=0, required=False)
     parser.add_argument('--max_iter', type=int, default=np.inf, required=False)
+    parser.add_argument('--eps', type=float, default=1e-2, required=False)
     parser.add_argument('--float64', action='store_true')
     parser.add_argument('--mosek_check', action='store_true')
     args = parser.parse_args()
@@ -151,8 +152,8 @@ if __name__ == "__main__":
     pweight = 1
     eps_zero = 1e-5
     F_Y_0 = [F_half,Y]
-    alpha = eta*pweight
-    beta = eta/pweight 
+    alpha = eta/pweight 
+    beta = eta*pweight
     overrelax_rho = 1.9
     wu_it = args.wu_it
 
@@ -160,25 +161,25 @@ if __name__ == "__main__":
     it = 0
 
     while it < MAX_ITER:
-        beta_YA = torch.gather(beta*Y,1,pos_ind.expand(n, m))-\
-                torch.gather(beta*Y,1,neg_ind.expand(n, m))
+        alpha_YA = torch.gather(alpha*Y,1,pos_ind.expand(n, m))-\
+                torch.gather(alpha*Y,1,neg_ind.expand(n, m))
         F_prev = F_half.clone()
         # \hat F^{k+1/2} update as projection
-        F_half_new = project(F_half+beta_YA, c_exp)
-        F_new = alpha*(2*F_half_new-F_half)
-        F_At = scatter_add(F_new,pos_ind,1)-scatter_add(F_new,neg_ind,1)
+        F_half_hat = project(F_half + alpha_YA, c_exp)
+        F_new = 2*F_half_hat-F_half
+        beta_F_At = scatter_add(beta * F_new,pos_ind,1)-scatter_add(beta * F_new,neg_ind,1)
         # Y update as proximal operator
-        Y_new = prox_util(Y-F_At, alpha*a)
+        Y_hat = prox_util(Y - beta_F_At, beta * a)
         # overrelaxation
-        F_half = (1-overrelax_rho)*F_half + overrelax_rho*F_half_new
-        Y = (1-overrelax_rho)*Y + overrelax_rho*Y_new
+        F_half = overrelax_rho * F_half_hat + (1 - overrelax_rho) * F_half
+        Y = overrelax_rho * Y_hat +  (1 - overrelax_rho) * Y 
         it += 1
         # check stopping criterion
         if it%10 == 0:
-            r = compute_r(F_half_new,F_prev+beta_YA,neg_ind,pos_ind,a)
+            r = compute_r(F_half_hat,F_prev + alpha_YA,neg_ind,pos_ind,a)
             residual = r.item()/(n*(n-1))
             print(f'{it=},{residual=}')
-            if r/(n*(n-1))<1e-2:
+            if r/(n*(n-1))<args.eps:
                 break
         # update primal weight
         if it%wu_it == 0:
@@ -190,7 +191,7 @@ if __name__ == "__main__":
     print('pdmcf time:', time.time()-start_time)
     if args.mosek_check:
         # check normalized objective gap to MOSEK sol
-        obj = eval_obj(F_half_new,pos_ind,neg_ind,c,a)
+        obj = eval_obj(F_half_hat,pos_ind,neg_ind,c,a)
         pdmcf_mosek_diff = (obj-cvx_optimal).item()/(n*(n-1))
         normalized_objective = cvx_optimal.item()/(n*(n-1))
         print('normalized_objective:', normalized_objective)

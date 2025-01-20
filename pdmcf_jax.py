@@ -48,8 +48,8 @@ def project(F,c):
     return jnp.where(F_plus.sum(axis=0)<=c[:,0],F_plus,F_project)
 
 @jax.jit
-def prox_util(Y,alpha_a):
-    n1 = (Y-(Y**2+4*alpha_a)**0.5)/2
+def prox_util(Y, beta_a):
+    n1 = (Y - (Y**2 + 4*beta_a)**0.5)/2
     n1 = jnp.fill_diagonal(n1,0,inplace=False)
     return n1
 
@@ -90,7 +90,7 @@ def weight_update(F,Y,F_Y_0,pweight,eps_zero,eta):
                         lambda x: (jnp.exp(0.5*jnp.log(x[1]/x[0])+
                                            0.5*jnp.log(x[2]))), 
                         lambda x: pweight, [del_F,del_Y,pweight])
-    return eta*pweight, eta/pweight, pweight
+    return eta/pweight, eta*pweight, pweight
 
 @jax.jit
 def XA(X):
@@ -106,12 +106,12 @@ def XAt(base, X):
 
 @jax.jit
 def update(Y,F_half,alpha,beta,a,c_exp,overrelax_rho):
-    beta_YA = beta*XA(Y) 
-    F_half_new = project(F_half+beta_YA, c_exp)
-    H = prox_util(Y-alpha*XAt(jnp.zeros_like(Y),2*F_half_new-F_half), alpha*a)
-    F_half = (1-overrelax_rho)*F_half + overrelax_rho*F_half_new
-    Y = (1-overrelax_rho)*Y + overrelax_rho*H
-    return F_half_new, beta_YA, F_half, Y
+    alpha_YA = alpha * XA(Y) 
+    F_half_hat = project(F_half + alpha_YA, c_exp)
+    Y_hat = prox_util(Y - beta*XAt(jnp.zeros_like(Y),2 * F_half_hat - F_half), beta * a)
+    F_half = overrelax_rho * F_half_hat + (1-overrelax_rho) * F_half
+    Y = overrelax_rho * Y_hat + (1-overrelax_rho)*Y 
+    return F_half_hat, alpha_YA, F_half, Y
 
 if __name__ == "__main__":
     
@@ -121,6 +121,7 @@ if __name__ == "__main__":
     parser.add_argument('--wu_it', type=int, default=100, required=False)
     parser.add_argument('--seed', type=int, default=0, required=False)
     parser.add_argument('--max_iter', type=int, default=np.inf, required=False)
+    parser.add_argument('--eps', type=float, default=1e-2, required=False)
     parser.add_argument('--float64', action='store_true')
     parser.add_argument('--mosek_check', action='store_true')
     args = parser.parse_args()
@@ -190,8 +191,8 @@ if __name__ == "__main__":
         overrelax_rho = np.float32(1.9)
         eps_zero = np.float32(1e-5)
     F_Y_0 = [F_half,Y]
-    alpha = eta*pweight
-    beta = eta/pweight
+    alpha = eta/pweight
+    beta = eta*pweight
     wu_it = args.wu_it
 
     MAX_ITER = args.max_iter
@@ -201,14 +202,14 @@ if __name__ == "__main__":
         it += 1
         F_prev = F_half.clone()
         # PDHG update
-        F_half_new, beta_YA, F_half, Y = update(Y,F_half,alpha,
+        F_half_hat, alpha_YA, F_half, Y = update(Y,F_half,alpha,
                                                 beta,a,c_exp,overrelax_rho)
         # check stopping criterion
         if it%10 == 0:
-            r = compute_r(F_half_new,a,F_prev+beta_YA)
+            r = compute_r(F_half_hat,a,F_prev+alpha_YA)
             residual = r.item()/(n*(n-1))
             print(f'{it=},{residual=}')
-            if r/(n*(n-1))<1e-2:
+            if r/(n*(n-1))<args.eps:
                 break
         # update primal weight
         if it%wu_it == 0:
@@ -220,7 +221,7 @@ if __name__ == "__main__":
     print('pdmcf time:', time.time()-start_time)
     if args.mosek_check:
         # check normalized objective gap to MOSEK sol
-        obj = eval_obj(F_half_new,c,a)
+        obj = eval_obj(F_half_hat,c,a)
         pdmcf_mosek_diff = (obj-cvx_optimal).item()/(n*(n-1))
         normalized_objective = cvx_optimal.item()/(n*(n-1))
         print('normalized_objective:', normalized_objective)
