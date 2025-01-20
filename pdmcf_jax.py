@@ -171,10 +171,10 @@ if __name__ == "__main__":
     jax.device_put(0.).block_until_ready(); start_time = time.time() # start timing
     
     if args.float64:
-        F_half = project(jnp.zeros((n,m),dtype=jnp.float64), c_exp)
+        F_half = jnp.zeros((n,m),dtype=jnp.float64)
         Y = -jnp.ones((n,n),dtype=jnp.float64)
     else:
-        F_half = project(jnp.zeros((n,m),dtype=jnp.float32), c_exp)
+        F_half = jnp.zeros((n,m),dtype=jnp.float32)
         Y = -jnp.ones((n,n),dtype=jnp.float32)
     Y = jnp.fill_diagonal(Y,0,inplace=False)
     

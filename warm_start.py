@@ -115,7 +115,7 @@ if __name__ == "__main__":
     a = torch.Tensor(a).to(device)
     c_exp = c.expand(n, m).T
     
-    F_half = project(torch.zeros((n,m)).to(device),c_exp)
+    F_half = torch.zeros((n,m)).to(device)
     Y = -torch.ones((n,n)).to(device)
     Y.fill_diagonal_(0)
     if args.float64:
