@@ -37,3 +37,11 @@ Run PDMCF (with warm start) method
 python warm_start.py --n 1000 --q 10 --nu 0.1
 ```
 <code>--nu</code> specifies weight perturbation ratio (default to 0.1), <code>--float64</code> can be added to switch to higher accuracy.
+## Customize utility functions
+We also provide a script for user-specified utility functions. See <code>pdmcf_custom.py</code> and <code>custom_utils.py</code>. Specifically, users need to provide the following functions in <code>custom_utils.py</code> (we provide weighted log and weighted square root as examples in comment lines).
+* prox_util: how to compute proximal operator to conjugate of negative utilities, i.e., $prox_{(-u_{ij})^\ast}$
+* eval_f: how to evaluate negative utility functions, i.e., $-u_{ij}$
+* nabla: how to compute derivative of utility functions, i.e., $u'_{ij}$
+* mosek_solve: code for solving with MOSEK, used as benchmark comparison
+
+<code>--n</code>, <code>--q</code>, <code>--mosek_check</code>, <code>--float64</code>, <code>--eps</code> are valid arguments.
