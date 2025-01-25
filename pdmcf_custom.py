@@ -4,6 +4,7 @@ import torch
 import time
 from torch_scatter import scatter, scatter_add
 import argparse
+from custom_utils import prox_util, eval_f, nabla, mosek_solve
 
 def create_data(N,k):
     node_list = np.array([np.random.rand(N),
@@ -43,10 +44,6 @@ def project(F,c):
     F_project[:,col_ind] = F_plus[:,col_ind]
     return F_project
 
-def prox_util(Y,beta_weight):
-    n1 = (Y - (Y**2 + 4 * beta_weight)**0.5)/2
-    n1.fill_diagonal_(0)
-    return n1
 
 def eval_obj(F,pos_ind,neg_ind,c,weight):
     f1 = (F>=-1e-4).all()
@@ -56,17 +53,16 @@ def eval_obj(F,pos_ind,neg_ind,c,weight):
     f4 = (f3>0).all()
     if not (f1 and f2 and f4):
         return torch.inf 
-    return ((-weight*torch.log(f3)).sum()).item()
+    return eval_f(f3, weight).item()
 
 def compute_r(F,pre_proj,neg_ind,pos_ind,weight):
-    minusFAt = scatter_add(F,neg_ind,1) - scatter_add(F,pos_ind,1) 
-    minusFAt.fill_diagonal_(1)
-    if not (minusFAt>0).all():
+    minus_FAt = scatter_add(F,neg_ind,1) - scatter_add(F,pos_ind,1) 
+    minus_FAt.fill_diagonal_(1)
+    if not (minus_FAt>0).all():
         return torch.Tensor([torch.inf])
-    inv_minusFAt = (1/minusFAt)*weight 
-    inv_minusFAt.fill_diagonal_(0)
-    nabla_u = torch.gather(inv_minusFAt,1,pos_ind.expand(F.shape))-\
-                torch.gather(inv_minusFAt,1,neg_ind.expand(F.shape))
+    nabla_u = nabla(minus_FAt, weight)
+    nabla_u = torch.gather(nabla_u,1,pos_ind.expand(F.shape))-\
+                torch.gather(nabla_u,1,neg_ind.expand(F.shape))
     v = (nabla_u**2).sum()
     s = ((F-pre_proj)**2).sum()
     p = ((F-pre_proj)*nabla_u).sum() 
@@ -108,16 +104,7 @@ if __name__ == "__main__":
     # sanity check with mosek
     if args.mosek_check:
         print(f'START MOSEK SOLVE')
-        F = cp.Variable(A.shape) 
-        bimask = np.ones((n,n))
-        np.fill_diagonal(bimask, 0)
-        obj = -cp.sum(cp.multiply(weight,cp.log(-cp.multiply(bimask,F@A.T)+np.eye(n))))
-        prob = cp.Problem(cp.Minimize(obj),[F>=0,F.T@np.ones(n)<=c])
-        start_time = time.time()
-        prob.solve(solver=cp.MOSEK)
-        cvx_optimal = prob.value
-        mosek_time = prob._solve_time
-        cvx_F = F.value
+        mosek_time, cvx_optimal = mosek_solve(A,weight,c,n)
         print('mosek time:', mosek_time)
 
     # PDHG algorithm 
@@ -166,8 +153,9 @@ if __name__ == "__main__":
         F_half_hat = project(F_half + alpha_YA, c_exp)
         F_new = 2*F_half_hat-F_half
         beta_F_At = scatter_add(beta * F_new,pos_ind,1)-scatter_add(beta * F_new,neg_ind,1)
+        
         # Y update as proximal operator
-        Y_hat = prox_util(Y - beta_F_At, beta * weight)
+        Y_hat = prox_util(Y - beta_F_At, beta, weight)
         # overrelaxation
         F_half = overrelax_rho * F_half_hat + (1 - overrelax_rho) * F_half
         Y = overrelax_rho * Y_hat +  (1 - overrelax_rho) * Y 
@@ -190,11 +178,10 @@ if __name__ == "__main__":
     if args.mosek_check:
         # check normalized objective gap to MOSEK sol
         obj = eval_obj(F_half_hat,pos_ind,neg_ind,c,weight)
-        pdmcf_mosek_diff = (obj-cvx_optimal).item()/(n*(n-1))
-        normalized_objective = cvx_optimal.item()/(n*(n-1))
+        pdmcf_mosek_diff = (obj-cvx_optimal)/(n*(n-1))
+        normalized_objective = cvx_optimal/(n*(n-1))
         print('normalized_objective:', normalized_objective)
         print('pdmcf_mosek_diff:', pdmcf_mosek_diff)
-
 
 
 

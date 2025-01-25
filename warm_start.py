@@ -39,12 +39,12 @@ def project(F,c):
     F_project[:,col_ind] = F_plus[:,col_ind]
     return F_project
 
-def prox_util(Y,beta_a):
-    n1 = (Y - (Y**2 + 4 * beta_a)**0.5)/2
+def prox_util(Y,beta_weight):
+    n1 = (Y - (Y**2 + 4 * beta_weight)**0.5)/2
     n1.fill_diagonal_(0)
     return n1
 
-def eval_obj(F,pos_ind,neg_ind,c,a):
+def eval_obj(F,pos_ind,neg_ind,c,weight):
     f1 = (F>=-1e-4).all()
     f2 = (F.sum(dim=0)<=c+1e-4).all()
     f3 = scatter_add(F,neg_ind,1)-scatter_add(F,pos_ind,1)
@@ -52,14 +52,14 @@ def eval_obj(F,pos_ind,neg_ind,c,a):
     f4 = (f3>0).all()
     if not (f1 and f2 and f4):
         return torch.inf 
-    return ((-a*torch.log(f3)).sum()).item()
+    return ((-weight*torch.log(f3)).sum()).item()
 
-def compute_r(F,pre_proj,neg_ind,pos_ind,a):
+def compute_r(F,pre_proj,neg_ind,pos_ind,weight):
     minusFAt = scatter_add(F,neg_ind,1) - scatter_add(F,pos_ind,1) 
     minusFAt.fill_diagonal_(1)
     if not (minusFAt>0).all():
         return torch.Tensor([torch.inf])
-    inv_minusFAt = (1/minusFAt)*a 
+    inv_minusFAt = (1/minusFAt)*weight 
     inv_minusFAt.fill_diagonal_(0)
     nabla_u = torch.gather(inv_minusFAt,1,pos_ind.expand(F.shape))-\
                 torch.gather(inv_minusFAt,1,neg_ind.expand(F.shape))
@@ -78,8 +78,8 @@ def weight_update(F,Y,pweight,eps_zero,eta,F_init,Y_init):
             0.5*torch.log(torch.Tensor([pweight])).item())
     return eta/pweight, eta*pweight, pweight
 
-def perturb(a,ratio):
-    ret = a + (2*(torch.rand((a.shape))<0.5)-1).to(device)*(a*ratio)
+def perturb(weight,ratio):
+    ret = weight + (2*(torch.rand((weight.shape))<0.5)-1).to(device)*(weight*ratio)
     return ret
 
 if __name__ == "__main__":
@@ -100,7 +100,7 @@ if __name__ == "__main__":
     torch.manual_seed(args.seed)
     n = args.n; q = args.q
     A, c = create_data(n,q) 
-    a = np.exp(np.random.rand(n,n)*(np.log(3)-np.log(0.3))+np.log(0.3))
+    weight = np.exp(np.random.rand(n,n)*(np.log(3)-np.log(0.3))+np.log(0.3))
     m = A.shape[1]
     print(f'{n=},{q=},{m=}')
 
@@ -112,7 +112,7 @@ if __name__ == "__main__":
     neg_ind = torch.where(torch.Tensor(A).T==-1)[1].to(device)
     del A
     c = torch.Tensor(c).to(device)
-    a = torch.Tensor(a).to(device)
+    weight = torch.Tensor(weight).to(device)
     c_exp = c.expand(n, m).T
     
     F_half = torch.zeros((n,m)).to(device)
@@ -123,7 +123,7 @@ if __name__ == "__main__":
         A = A.double()
         c = c.double()
         c_exp = c.expand(n, m).T
-        a = a.double()
+        weight = weight.double()
         F_half = F_half.double()
         Y = Y.double()
 
@@ -138,9 +138,9 @@ if __name__ == "__main__":
     beta = eta*pweight
     overrelax_rho = 1.9
     wu_it = args.wu_it
-    a_original = a.clone()
+    weight_original = weight.clone()
     # perturb log weight a
-    a = perturb(a_original,args.nu)
+    weight = perturb(weight_original,args.nu)
     print(f'weight perturb ratio: {args.nu}')
 
     MAX_ITER = args.max_iter
@@ -154,12 +154,12 @@ if __name__ == "__main__":
         F_half_hat = project(F_half + alpha_YA, c_exp)
         F_new = 2*F_half_hat - F_half
         F_At = scatter_add(beta * F_new,pos_ind,1)-scatter_add(beta * F_new,neg_ind,1)
-        Y_hat = prox_util(Y - F_At, beta * a)
+        Y_hat = prox_util(Y - F_At, beta * weight)
         F_half = overrelax_rho*F_half_hat + (1-overrelax_rho)*F_half 
         Y = overrelax_rho * Y_hat + (1-overrelax_rho)*Y 
         it += 1
         if it%10 == 0:
-            r = compute_r(F_half_hat,F_prev + alpha_YA,neg_ind,pos_ind,a)
+            r = compute_r(F_half_hat,F_prev + alpha_YA,neg_ind,pos_ind,weight)
             residual = r.item()/(n*(n-1))
             print(f'warm up solve: {it=},{residual=}')
             if r/(n*(n-1))<torch.inf:
@@ -171,7 +171,7 @@ if __name__ == "__main__":
 
     # true solve
     it = 0
-    a = a_original.clone()
+    weight = weight_original.clone()
     torch.cuda.synchronize()
     start_time = time.time() # start timing
     F_Y_0 = [F_half,Y]
@@ -182,12 +182,12 @@ if __name__ == "__main__":
         F_half_hat = project(F_half + alpha_YA, c_exp)
         F_new = 2*F_half_hat-F_half
         F_At = scatter_add(beta * F_new,pos_ind,1)-scatter_add(beta * F_new,neg_ind,1)
-        Y_hat = prox_util(Y-F_At, beta * a)
+        Y_hat = prox_util(Y-F_At, beta * weight)
         F_half = overrelax_rho*F_half_hat + (1-overrelax_rho)*F_half 
         Y = overrelax_rho * Y_hat + (1-overrelax_rho)*Y 
         it += 1
         if it%10 == 0:
-            r = compute_r(F_half_hat,F_prev+alpha_YA,neg_ind,pos_ind,a)
+            r = compute_r(F_half_hat,F_prev+alpha_YA,neg_ind,pos_ind,weight)
             residual = r.item()/(n*(n-1))
             print(f'true solve: {it=},{residual=}')
             if r/(n*(n-1))<1e-2:

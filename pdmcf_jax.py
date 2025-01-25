@@ -48,27 +48,27 @@ def project(F,c):
     return jnp.where(F_plus.sum(axis=0)<=c[:,0],F_plus,F_project)
 
 @jax.jit
-def prox_util(Y, beta_a):
-    n1 = (Y - (Y**2 + 4*beta_a)**0.5)/2
+def prox_util(Y, beta_weight):
+    n1 = (Y - (Y**2 + 4*beta_weight)**0.5)/2
     n1 = jnp.fill_diagonal(n1,0,inplace=False)
     return n1
 
 @jax.jit
-def eval_obj(F,c,a):
+def eval_obj(F,c,weight):
     f1 = (F>=-1e-4).all()
     f2 = (F.sum(axis=0)<=c+1e-4).all()
     f3 = XAt(jnp.zeros((F.shape[0],F.shape[0])),-F)
     f3 = jnp.fill_diagonal(f3,1,inplace=False)
     f4 = (f3>0).all()
     return jax.lax.cond((f1&f2)&f4, 
-                        lambda x: (-a*jnp.log(x)).sum(), 
+                        lambda x: (-weight*jnp.log(x)).sum(), 
                         lambda x: jnp.inf, f3)
 
 @jax.jit
-def compute_r(G,a,pre_proj):
+def compute_r(G,weight,pre_proj):
     minusFAt = XAt(jnp.zeros((G.shape[0],G.shape[0])),-G)
     minusFAt = jnp.fill_diagonal(minusFAt,1,inplace=False)
-    inv_minusFAt = (1/minusFAt)*a 
+    inv_minusFAt = (1/minusFAt)*weight 
     inv_minusFAt = jnp.fill_diagonal(inv_minusFAt,0,inplace=False)
     nabla_u = XA(inv_minusFAt)
     v = (nabla_u**2).sum()
@@ -105,10 +105,10 @@ def XAt(base, X):
     return res
 
 @jax.jit
-def update(Y,F_half,alpha,beta,a,c_exp,overrelax_rho):
+def update(Y,F_half,alpha,beta,weight,c_exp,overrelax_rho):
     alpha_YA = alpha * XA(Y) 
     F_half_hat = project(F_half + alpha_YA, c_exp)
-    Y_hat = prox_util(Y - beta*XAt(jnp.zeros_like(Y),2 * F_half_hat - F_half), beta * a)
+    Y_hat = prox_util(Y - beta*XAt(jnp.zeros_like(Y),2 * F_half_hat - F_half), beta * weight)
     F_half = overrelax_rho * F_half_hat + (1-overrelax_rho) * F_half
     Y = overrelax_rho * Y_hat + (1-overrelax_rho)*Y 
     return F_half_hat, alpha_YA, F_half, Y
@@ -131,7 +131,7 @@ if __name__ == "__main__":
     torch.manual_seed(args.seed)
     n = args.n; q = args.q
     A, c = create_data(n,q) 
-    a = np.exp(np.random.rand(n,n)*(np.log(3)-np.log(0.3))+np.log(0.3))
+    weight = np.exp(np.random.rand(n,n)*(np.log(3)-np.log(0.3))+np.log(0.3))
     m = A.shape[1]
     print(f'{n=},{q=},{m=}')
 
@@ -139,11 +139,9 @@ if __name__ == "__main__":
     if args.mosek_check:
         print(f'START MOSEK SOLVE')
         F = cp.Variable(A.shape) 
-        obj = 0
-        minusFAT = -F @ A.T
         bimask = np.ones((n,n))
         np.fill_diagonal(bimask, 0)
-        obj = -cp.sum(cp.multiply(a,cp.log(-cp.multiply(bimask,F@A.T)+np.eye(n))))
+        obj = -cp.sum(cp.multiply(weight,cp.log(-cp.multiply(bimask,F@A.T)+np.eye(n))))
         prob = cp.Problem(cp.Minimize(obj),[F>=0,F.T@np.ones(n)<=c])
         start_time = time.time()
         prob.solve(solver=cp.MOSEK)
@@ -158,11 +156,11 @@ if __name__ == "__main__":
         print('using float64')
         A = jnp.array(A,dtype=jnp.float64)
         c = jnp.array(c,dtype=jnp.float64)
-        a = jnp.array(a,dtype=jnp.float64)
+        weight = jnp.array(weight,dtype=jnp.float64)
     else:
         A = jnp.array(A,dtype=jnp.float32)
         c = jnp.array(c,dtype=jnp.float32)
-        a = jnp.array(a,dtype=jnp.float32)
+        weight = jnp.array(weight,dtype=jnp.float32)
     pos_ind = jnp.where(A.T==1)[1].reshape(1,m) # index A matrix
     neg_ind = jnp.where(A.T==-1)[1].reshape(1,m) # index A matrix
     del A
@@ -203,10 +201,10 @@ if __name__ == "__main__":
         F_prev = F_half.clone()
         # PDHG update
         F_half_hat, alpha_YA, F_half, Y = update(Y,F_half,alpha,
-                                                beta,a,c_exp,overrelax_rho)
+                                                beta,weight,c_exp,overrelax_rho)
         # check stopping criterion
         if it%10 == 0:
-            r = compute_r(F_half_hat,a,F_prev+alpha_YA)
+            r = compute_r(F_half_hat,weight,F_prev+alpha_YA)
             residual = r.item()/(n*(n-1))
             print(f'{it=},{residual=}')
             if r/(n*(n-1))<args.eps:
@@ -221,7 +219,7 @@ if __name__ == "__main__":
     print('pdmcf time:', time.time()-start_time)
     if args.mosek_check:
         # check normalized objective gap to MOSEK sol
-        obj = eval_obj(F_half_hat,c,a)
+        obj = eval_obj(F_half_hat,c,weight)
         pdmcf_mosek_diff = (obj-cvx_optimal).item()/(n*(n-1))
         normalized_objective = cvx_optimal.item()/(n*(n-1))
         print('normalized_objective:', normalized_objective)

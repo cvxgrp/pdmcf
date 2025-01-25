@@ -1,3 +1,4 @@
 cvxpy
 mosek
 scipy==1.14.1
+mosek==10.2.13
