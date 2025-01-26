@@ -1,6 +1,10 @@
 # PDMCF: Solving Multicommodity Network Flow Problems on GPUs
 
-This repo contains the source code for experiments for our PDMCF paper: XXXpaper linkXXX
+This repo contains the source code for experiments for our PDMCF paper: 
+
+**Solving Large Multicommodity Network Flow Problems on GPUs** <br>
+*Fangzhao Zhang, Stephen Boyd* <br>
+Paper: [https://web.stanford.edu/~boyd/papers/pdmcf.html](https://web.stanford.edu/~boyd/papers/pdmcf.html) <br>
 
 ## Repository Overview
 
