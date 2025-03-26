@@ -15,10 +15,10 @@ Clone the repo and run the following command
 ```
 conda create -n pdmcf python=3.12
 conda activate pdmcf
-conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
+conda install pytorch torchvision torchaudio pytorch-cuda pytorch-scatter -c pytorch -c nvidia -c pyg
 pip install -r requirement.txt
-conda install pytorch-scatter -c pyg
 ```
+note <code>pytorch-scatter</code> package may have implicit requirement on torch and torch-cuda version, check https://pypi.org/project/torch-scatter/ (at the deployment time, <code>pytorch=2.4.0</code> and <code>pytorch-cuda=11.8</code> are required.)
 ## PDMCF experiment
 Run PDMCF method
 ```
